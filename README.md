@@ -1,1 +1,2 @@
 # notifier-client
+https://pypi.org/project/telegram-notifier-client/
