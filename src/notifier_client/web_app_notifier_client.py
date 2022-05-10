@@ -152,3 +152,22 @@ class SendNotification:
             if status == 200:
                 return status, sending
         send_message(message + 'failed to send by th:', self.receiver_id, amend)
+
+    def set_threshold_setting(self,
+                              message: str,
+                              sending_threshold_number: int,
+                              sending_threshold_time: int
+                              ) -> int:
+        """
+
+        :param message: the message want to set a sending thresh hole to
+        :param sending_threshold_number: the number of the message that need to be added to send one
+                    of them (threshold value)
+        :param sending_threshold_time: the threshold boundary
+        :return:
+        """
+        return self.notifier_client.set_threshold_setting(
+            message,
+            sending_threshold_number,
+            sending_threshold_time
+        )
