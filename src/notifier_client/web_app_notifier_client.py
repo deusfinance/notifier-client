@@ -152,5 +152,3 @@ class SendNotification:
             if status == 200:
                 return status, sending
         send_message(message + 'failed to send by th:', self.receiver_id, amend)
-
-
