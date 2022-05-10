@@ -1,17 +1,17 @@
 import requests
 from typing import Tuple, Optional
 
-from utils import GlobalVariables, get_set_telegram_group_id, send_alert, send_message
+from utils import GlobalVariables, send_alert, send_message
 
 
 class WebAppNotifierClient:
-    def __init__(self, group_name: str, server_url: str, AuthToken: str):
+    def __init__(self, receiver_id: int, server_url: str, AuthToken: str):
         """
-        :param group_name: the name of the group in the telegram that wants to send a message to
+        :param receiver_id: the id of the group in the telegram that wants to send a message to
         :param server_url: the base URL of the sending server
         :param AuthToken: the Token to access the APIs
         """
-        self.group_name = group_name
+        self.receiver_id = receiver_id
         self.server_url = server_url
         self.AuthToken = AuthToken
 
@@ -25,7 +25,7 @@ class WebAppNotifierClient:
         return requests.post(
             url=self.server_url + '/send_alert',
             headers={'AuthToken': self.AuthToken},
-            json=dict(receiver_name=self.group_name, text=message, amend=amend)
+            json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
         ).status_code
 
     def send_message(self, message: str, amend: dict = None) -> int:
@@ -38,7 +38,7 @@ class WebAppNotifierClient:
         return requests.post(
             url=self.server_url + '/send_message',
             headers={'AuthToken': self.AuthToken},
-            json=dict(receiver_name=self.group_name, text=message, amend=amend)
+            json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
         ).status_code
 
     def send_message_by_threshold(self, message: str, amend: dict = None) -> Tuple[int, bool]:
@@ -51,7 +51,7 @@ class WebAppNotifierClient:
         response = requests.post(
             url=self.server_url + '/send_message_threshold',
             headers={'AuthToken': self.AuthToken},
-            json=dict(receiver_name=self.group_name, text=message, amend=amend)
+            json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
         )
         if response.status_code != 200:
             return response.status_code, False
@@ -84,7 +84,7 @@ class WebAppNotifierClient:
 class SendNotification:
     def __init__(
             self,
-            group_name: str,
+            receiver_id: int,
             server_url: str,
             AuthToken: str,
             retiring_number: int = 5,
@@ -95,7 +95,7 @@ class SendNotification:
     ):
         """
 
-        :param group_name:
+        :param receiver_id:
         :param server_url:
         :param AuthToken:
         :param retiring_number:
@@ -104,7 +104,7 @@ class SendNotification:
         :param telegram_bot_token:
         :param alter_delay:
         """
-        self.group_name = group_name
+        self.receiver_id = receiver_id
         self.server_url = server_url
         self.AuthToken = AuthToken
         self.retiring_number = retiring_number
@@ -112,7 +112,7 @@ class SendNotification:
                                           redis_server2),
         GlobalVariables.set_alter_delay(alter_delay)
         GlobalVariables.set_telegram_bot_token(telegram_bot_token)
-        self.notifier_client = WebAppNotifierClient(group_name, server_url, AuthToken)
+        self.notifier_client = WebAppNotifierClient(self.receiver_id, server_url, AuthToken)
 
     def send_alert(self, message: str, amend: dict = None) -> Optional[int]:
         """
@@ -125,8 +125,7 @@ class SendNotification:
             status = self.notifier_client.send_alert(message, amend)
             if status == 200:
                 return status
-        receiver_id = get_set_telegram_group_id(self.group_name)
-        send_alert(message, receiver_id, amend)
+        send_alert(message, self.receiver_id, amend)
 
     def send_message(self, message: str, amend: dict = None) -> Optional[int]:
         """
@@ -139,8 +138,7 @@ class SendNotification:
             status = self.notifier_client.send_message(message, amend)
             if status == 200:
                 return status
-        receiver_id = get_set_telegram_group_id(self.group_name)
-        send_message(message, receiver_id, amend)
+        send_message(message, self.receiver_id, amend)
 
     def send_message_by_threshold(self, message: str, amend: dict = None) -> Optional[Tuple[int, bool]]:
         """
@@ -153,7 +151,6 @@ class SendNotification:
             status, sending = self.notifier_client.send_message_by_threshold(message, amend)
             if status == 200:
                 return status, sending
-        receiver_id = get_set_telegram_group_id(self.group_name)
-        send_message(message + 'failed to send by th:', receiver_id, amend)
+        send_message(message + 'failed to send by th:', self.receiver_id, amend)
 
 

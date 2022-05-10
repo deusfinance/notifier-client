@@ -66,27 +66,6 @@ def process_telegram_info(telegram_info: dict, group_name) -> Optional[int]:
     return
 
 
-def get_set_telegram_group_id(group_name: str) -> Optional[int]:
-    group_name = normalize_group_name(group_name.strip().lower().replace(' ', ''))
-    REDIS_SERVER = GlobalVariables.get_redis_server1()
-    redis_data = REDIS_SERVER.get(group_name)
-    TELEGRAM_BOT_TOKEN = GlobalVariables.get_telegram_bot_token()
-    if redis_data is not None:
-        return redis_data
-    try:
-        telegram_info = requests.get(
-            f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates'
-        ).json()
-    except Exception:
-        raise Exception
-    if not telegram_info['ok']:
-        raise Exception
-    chat_id = process_telegram_info(telegram_info, group_name)
-    if chat_id is None:
-        raise Exception
-    return chat_id
-
-
 def set_threshold_setting(
         message: str,
         sending_threshold_number: int,
