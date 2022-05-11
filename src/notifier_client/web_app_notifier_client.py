@@ -164,7 +164,7 @@ class SendNotification:
         :param sending_threshold_number: the number of the message that need to be added to send one
                     of them (threshold value)
         :param sending_threshold_time: the threshold boundary
-        :return:
+        :return: the status code
         """
         return self.notifier_client.set_threshold_setting(
             message,
