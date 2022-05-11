@@ -1,7 +1,7 @@
 import requests
 from typing import Tuple, Optional
 
-from utils import GlobalVariables, send_alert, send_message
+from notifier_client.utils import GlobalVariables, send_alert, send_message
 
 
 class WebAppNotifierClient:
@@ -121,10 +121,13 @@ class SendNotification:
         :return: the status code of the response (200 means the message added to
                                                   the queue for sending not the message sent)
         """
-        for i in range(self.retiring_number):
-            status = self.notifier_client.send_alert(message, amend)
-            if status == 200:
-                return status
+        try:
+            for i in range(self.retiring_number):
+                status = self.notifier_client.send_alert(message, amend)
+                if status == 200:
+                    return status
+        except Exception as e:
+            print(e.__str__())
         send_alert(message, self.receiver_id, amend)
 
     def send_message(self, message: str, amend: dict = None) -> Optional[int]:
@@ -134,10 +137,13 @@ class SendNotification:
         :return: the status code of the response (200 means the message added to
                                                   the queue for sending not the message sent)
         """
-        for i in range(self.retiring_number):
-            status = self.notifier_client.send_message(message, amend)
-            if status == 200:
-                return status
+        try:
+            for i in range(self.retiring_number):
+                status = self.notifier_client.send_message(message, amend)
+                if status == 200:
+                    return status
+        except Exception as e:
+            print(e.__str__())
         send_message(message, self.receiver_id, amend)
 
     def send_message_by_threshold(self, message: str, amend: dict = None) -> Optional[Tuple[int, bool]]:
@@ -147,10 +153,13 @@ class SendNotification:
         :param amend: to amend the message
         :return: the status code of the response and that the message was added to queue for sending or not
         """
-        for i in range(self.retiring_number):
-            status, sending = self.notifier_client.send_message_by_threshold(message, amend)
-            if status == 200:
-                return status, sending
+        try:
+            for i in range(self.retiring_number):
+                status, sending = self.notifier_client.send_message_by_threshold(message, amend)
+                if status == 200:
+                    return status, sending
+        except Exception as e:
+            print(e.__str__())
         send_message(message + 'failed to send by th:', self.receiver_id, amend)
 
     def set_threshold_setting(self,
