@@ -7,4 +7,5 @@ src/notifier_client/web_app_notifier_client.py
 src/telegram_notifier_client.egg-info/PKG-INFO
 src/telegram_notifier_client.egg-info/SOURCES.txt
 src/telegram_notifier_client.egg-info/dependency_links.txt
+src/telegram_notifier_client.egg-info/requires.txt
 src/telegram_notifier_client.egg-info/top_level.txt
