@@ -1,19 +1,21 @@
-import requests
+import logging
 from typing import Tuple, Optional
 
-from notifier_client.utils import GlobalVariables, send_alert, send_message
+import requests
+
+logger = logging.getLogger('telegram')
 
 
 class WebAppNotifierClient:
-    def __init__(self, receiver_id: int, server_url: str, AuthToken: str):
+    def __init__(self, receiver_id: int, server_url: str, auth_token: str):
         """
         :param receiver_id: the id of the group in the telegram that wants to send a message to
         :param server_url: the base URL of the sending server
-        :param AuthToken: the Token to access the APIs
+        :param auth_token: the Token to access the APIs
         """
         self.receiver_id = receiver_id
         self.server_url = server_url
-        self.AuthToken = AuthToken
+        self.auth_token = auth_token
 
     def send_alert(self, message: str, amend: dict = None) -> int:
         """
@@ -24,7 +26,7 @@ class WebAppNotifierClient:
         """
         return requests.post(
             url=self.server_url + '/send_alert',
-            headers={'AuthToken': self.AuthToken},
+            headers={'AuthToken': self.auth_token},
             json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
         ).status_code
 
@@ -37,7 +39,7 @@ class WebAppNotifierClient:
         """
         return requests.post(
             url=self.server_url + '/send_message',
-            headers={'AuthToken': self.AuthToken},
+            headers={'AuthToken': self.auth_token},
             json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
         ).status_code
 
@@ -50,7 +52,7 @@ class WebAppNotifierClient:
         """
         response = requests.post(
             url=self.server_url + '/send_message_threshold',
-            headers={'AuthToken': self.AuthToken},
+            headers={'AuthToken': self.auth_token},
             json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
         )
         if response.status_code != 200:
@@ -72,7 +74,7 @@ class WebAppNotifierClient:
         """
         return requests.post(
             url=self.server_url + '/set_sending_threshold',
-            headers={'AuthToken': self.AuthToken},
+            headers={'AuthToken': self.auth_token},
             json=dict(
                 message=message,
                 sending_threshold_number=sending_threshold_number,
@@ -86,33 +88,23 @@ class SendNotification:
             self,
             receiver_id: int,
             server_url: str,
-            AuthToken: str,
-            retiring_number: int = 5,
-            redis_server1=None,
-            redis_server2=None,
-            telegram_bot_token=None,
-            alter_delay=None
+            auth_token: str,
+            retrying_number: int = 5,
+            telegram_bot_token=None
     ):
         """
 
         :param receiver_id:
         :param server_url:
-        :param AuthToken:
-        :param retiring_number:
-        :param redis_server1:
-        :param redis_server2:
+        :param auth_token:
+        :param retrying_number:
         :param telegram_bot_token:
-        :param alter_delay:
         """
         self.receiver_id = receiver_id
         self.server_url = server_url
-        self.AuthToken = AuthToken
-        self.retiring_number = retiring_number
-        GlobalVariables.set_redis_servers(redis_server1,
-                                          redis_server2),
-        GlobalVariables.set_alter_delay(alter_delay)
-        GlobalVariables.set_telegram_bot_token(telegram_bot_token)
-        self.notifier_client = WebAppNotifierClient(self.receiver_id, server_url, AuthToken)
+        self.retiring_number = retrying_number
+        self.telegram_bot_token = telegram_bot_token
+        self.notifier_client = WebAppNotifierClient(self.receiver_id, server_url, auth_token)
 
     def send_alert(self, message: str, amend: dict = None) -> Optional[int]:
         """
@@ -128,7 +120,7 @@ class SendNotification:
                     return status
         except Exception as e:
             print(e.__str__())
-        send_alert(message, self.receiver_id, amend)
+        self.__send_emergency_message(message, self.receiver_id, amend)
 
     def send_message(self, message: str, amend: dict = None) -> Optional[int]:
         """
@@ -144,7 +136,7 @@ class SendNotification:
                     return status
         except Exception as e:
             print(e.__str__())
-        send_message(message, self.receiver_id, amend)
+        self.__send_emergency_message(message, self.receiver_id, amend)
 
     def send_message_by_threshold(self, message: str, amend: dict = None) -> Optional[Tuple[int, bool]]:
         """
@@ -160,7 +152,7 @@ class SendNotification:
                     return status, sending
         except Exception as e:
             print(e.__str__())
-        send_message(message + 'failed to send by th:', self.receiver_id, amend)
+        self.__send_emergency_message(message + 'failed to send by th:', self.receiver_id, amend)
 
     def set_threshold_setting(self,
                               message: str,
@@ -180,3 +172,15 @@ class SendNotification:
             sending_threshold_number,
             sending_threshold_time
         )
+
+    def __send_emergency_message(self, message: str, receiver_id: int, amend: dict = None, retrying=5):
+        for i in range(retrying):
+            logger.info(f'{message}, {receiver_id}')
+            url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
+            data = {
+                'chat_id': receiver_id,
+                'text': f"message: {message} amend: {amend}",
+                'disable_web_page_preview': True
+            }
+            if requests.post(url=url, data=data, timeout=5).status_code == '200':
+                break
