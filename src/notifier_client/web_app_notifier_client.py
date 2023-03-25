@@ -174,7 +174,7 @@ class SendNotification:
         )
 
     def __send_emergency_message(self, message: str, receiver_id: int, amend: dict = None, retrying=5):
-        for i in range(retrying):
+        for _ in range(retrying):
             logger.info(f'{message}, {receiver_id}')
             url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
             data = {
@@ -182,5 +182,5 @@ class SendNotification:
                 'text': f"message: {message} amend: {amend}",
                 'disable_web_page_preview': True
             }
-            if requests.post(url=url, data=data, timeout=5).status_code == '200':
+            if requests.post(url=url, data=data, timeout=5).status_code == 200:
                 break
