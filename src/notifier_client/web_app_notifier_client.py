@@ -1,5 +1,5 @@
 import logging
-import logging.config
+from logging import Logger
 from typing import Tuple, Optional
 
 import requests
@@ -28,7 +28,8 @@ class WebAppNotifierClient:
         return requests.post(
             url=self.server_url + '/send_alert',
             headers={'AuthToken': self.auth_token},
-            json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
+            json=dict(receiver_id=self.receiver_id, text=message, amend=amend),
+            timeout=5
         ).status_code
 
     def send_message(self, message: str, amend: dict = None) -> int:
@@ -41,7 +42,8 @@ class WebAppNotifierClient:
         return requests.post(
             url=self.server_url + '/send_message',
             headers={'AuthToken': self.auth_token},
-            json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
+            json=dict(receiver_id=self.receiver_id, text=message, amend=amend),
+            timeout=5
         ).status_code
 
     def send_message_by_threshold(self, message: str, amend: dict = None) -> Tuple[int, bool]:
@@ -54,7 +56,8 @@ class WebAppNotifierClient:
         response = requests.post(
             url=self.server_url + '/send_message_threshold',
             headers={'AuthToken': self.auth_token},
-            json=dict(receiver_id=self.receiver_id, text=message, amend=amend)
+            json=dict(receiver_id=self.receiver_id, text=message, amend=amend),
+            timeout=5
         )
         if response.status_code != 200:
             return response.status_code, False
@@ -80,7 +83,8 @@ class WebAppNotifierClient:
                 message=message,
                 sending_threshold_number=sending_threshold_number,
                 sending_threshold_time=sending_threshold_time
-            )
+            ),
+            timeout=5
         ).status_code
 
 
@@ -90,10 +94,11 @@ class SendNotification:
             receiver_id: int,
             server_url: str,
             auth_token: str,
-            logger_name: str,
             retrying_number: int = 5,
             telegram_bot_token=None,
-            be_logged=False,
+            test_env=False,
+            test_env_logger: Optional[Logger] = None
+
     ):
         """
 
@@ -102,23 +107,21 @@ class SendNotification:
         :param auth_token:
         :param retrying_number:
         :param telegram_bot_token:
-        :param logger_name:
-        :param be_logged:
+        :param test_env_logger:
         """
         self.receiver_id = receiver_id
         self.server_url = server_url
         self.retiring_number = retrying_number
         self.telegram_bot_token = telegram_bot_token
         self.notifier_client = WebAppNotifierClient(self.receiver_id, server_url, auth_token)
-        self.be_logged = be_logged
-        self.logger_name = logger_name
-
-        if self.be_logged:
-            logging.basicConfig(level=logging.INFO,
-                                filename="notifier.log",
-                                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                                filemode='a')
-            self._logger = logging.getLogger(logger_name)
+        self.test_env = test_env
+        if self.test_env:
+            if test_env_logger:
+                self.test_env_logger = test_env_logger
+            else:
+                logging.basicConfig()
+                logging.getLogger().setLevel(logging.DEBUG)
+                self.test_env_logger = logging
 
     def send_alert(self, message: str, amend: dict = None) -> Optional[int]:
         """
@@ -127,17 +130,17 @@ class SendNotification:
         :return: the status code of the response (200 means the message added to
                                                   the queue for sending not the message sent)
         """
-        if self.be_logged:
-            self.__log(message)
-        else:
-            try:
-                for i in range(self.retiring_number):
-                    status = self.notifier_client.send_alert(message, amend)
-                    if status == 200:
-                        return status
-            except Exception as e:
-                print(e.__str__())
-            self.__send_emergency_message(message, self.receiver_id, amend)
+        if self.test_env:
+            self.test_env_logger.info(message)
+            return
+        try:
+            for i in range(self.retiring_number):
+                status = self.notifier_client.send_alert(message, amend)
+                if status == 200:
+                    return status
+        except Exception as e:
+            print(e.__str__())
+        self.__send_emergency_message(message, self.receiver_id, amend)
 
     def send_message(self, message: str, amend: dict = None) -> Optional[int]:
         """
@@ -146,17 +149,17 @@ class SendNotification:
         :return: the status code of the response (200 means the message added to
                                                   the queue for sending not the message sent)
         """
-        if self.be_logged:
-            self.__log(message)
-        else:
-            try:
-                for i in range(self.retiring_number):
-                    status = self.notifier_client.send_message(message, amend)
-                    if status == 200:
-                        return status
-            except Exception as e:
-                print(e.__str__())
-            self.__send_emergency_message(message, self.receiver_id, amend)
+        if self.test_env:
+            self.test_env_logger.info(message)
+            return
+        try:
+            for i in range(self.retiring_number):
+                status = self.notifier_client.send_message(message, amend)
+                if status == 200:
+                    return status
+        except Exception as e:
+            print(e.__str__())
+        self.__send_emergency_message(message, self.receiver_id, amend)
 
     def send_message_by_threshold(self, message: str, amend: dict = None) -> Optional[Tuple[int, bool]]:
         """
@@ -165,17 +168,17 @@ class SendNotification:
         :param amend: to amend the message
         :return: the status code of the response and that the message was added to queue for sending or not
         """
-        if self.be_logged:
-            self.__log(message)
-        else:
-            try:
-                for i in range(self.retiring_number):
-                    status, sending = self.notifier_client.send_message_by_threshold(message, amend)
-                    if status == 200:
-                        return status, sending
-            except Exception as e:
-                print(e.__str__())
-            self.__send_emergency_message(message + 'failed to send by th:', self.receiver_id, amend)
+        if self.test_env:
+            self.test_env_logger.info(message)
+            return
+        try:
+            for i in range(self.retiring_number):
+                status, sending = self.notifier_client.send_message_by_threshold(message, amend)
+                if status == 200:
+                    return status, sending
+        except Exception as e:
+            print(e.__str__())
+        self.__send_emergency_message(message + 'failed to send by th:', self.receiver_id, amend)
 
     def set_threshold_setting(self,
                               message: str,
@@ -205,8 +208,5 @@ class SendNotification:
                 'text': f"message: {message} amend: {amend}",
                 'disable_web_page_preview': True
             }
-            if requests.post(url=url, data=data, timeout=20).status_code == 200:
+            if requests.post(url=url, data=data, timeout=15).status_code == 200:
                 break
-
-    def __log(self, message: str):
-        self._logger.info(f'{message}')
