@@ -1,6 +1,6 @@
 import logging
 from logging import Logger
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union, List
 
 import requests
 
@@ -97,8 +97,8 @@ class SendNotification:
             retrying_number: int = 5,
             telegram_bot_token=None,
             test_env=False,
-            test_env_logger: Optional[Logger] = None
-
+            test_env_logger: Optional[Logger] = None,
+            max_msg_size: int = 3000
     ):
         """
 
@@ -115,6 +115,7 @@ class SendNotification:
         self.telegram_bot_token = telegram_bot_token
         self.notifier_client = WebAppNotifierClient(self.receiver_id, server_url, auth_token)
         self.test_env = test_env
+        self.max_msg_size = max_msg_size
         if self.test_env:
             if test_env_logger:
                 self.test_env_logger = test_env_logger
@@ -123,62 +124,59 @@ class SendNotification:
                 logging.getLogger().setLevel(logging.DEBUG)
                 self.test_env_logger = logging
 
-    def send_alert(self, message: str, amend: dict = None) -> Optional[int]:
+    def send_alert(self, message: str, amend: dict = None, emergency_msg: str = None) -> Optional[int]:
         """
         :param message: the message to send
         :param amend: to amend the message
+        :param emergency_msg: emergency message like mentioning someone
         :return: the status code of the response (200 means the message added to
                                                   the queue for sending not the message sent)
         """
         if self.test_env:
             self.test_env_logger.info(message)
             return
-        try:
-            for i in range(self.retiring_number):
-                status = self.notifier_client.send_alert(message, amend)
-                if status == 200:
-                    return status
-        except Exception as e:
-            print(e.__str__())
-        self.__send_emergency_message(message, self.receiver_id, amend)
+        msg_list = self.__split_msg(message, amend, emergency_msg)
+        status, __, page = self.__send_multiple_msg(msg_list, self.notifier_client.send_alert)
+        if len(msg_list[page:]) == 0:
+            return status
+        self.__send_emergency_message(msg_list[page:], self.receiver_id)
 
-    def send_message(self, message: str, amend: dict = None) -> Optional[int]:
+    def send_message(self, message: str, amend: dict = None, emergency_msg: str = None) -> Optional[int]:
         """
         :param message: the message to send
         :param amend: to amend the message
+        :param emergency_msg: emergency message like mentioning someone
         :return: the status code of the response (200 means the message added to
                                                   the queue for sending not the message sent)
         """
         if self.test_env:
             self.test_env_logger.info(message)
             return
-        try:
-            for i in range(self.retiring_number):
-                status = self.notifier_client.send_message(message, amend)
-                if status == 200:
-                    return status
-        except Exception as e:
-            print(e.__str__())
-        self.__send_emergency_message(message, self.receiver_id, amend)
 
-    def send_message_by_threshold(self, message: str, amend: dict = None) -> Optional[Tuple[int, bool]]:
+        msg_list = self.__split_msg(message, amend, emergency_msg)
+        status, __, page = self.__send_multiple_msg(msg_list, self.notifier_client.send_message)
+        if len(msg_list[page:]) == 0:
+            return status
+        self.__send_emergency_message(msg_list[page:], self.receiver_id)
+
+    def send_message_by_threshold(self, message: str, amend: dict = None,
+                                  emergency_msg: str = None) -> Optional[Tuple[int, bool]]:
         """
 
         :param message: the message to send
         :param amend: to amend the message
+        :param emergency_msg: emergency message like mentioning someone
         :return: the status code of the response and that the message was added to queue for sending or not
         """
         if self.test_env:
             self.test_env_logger.info(message)
             return
-        try:
-            for i in range(self.retiring_number):
-                status, sending = self.notifier_client.send_message_by_threshold(message, amend)
-                if status == 200:
-                    return status, sending
-        except Exception as e:
-            print(e.__str__())
-        self.__send_emergency_message(message + 'failed to send by th:', self.receiver_id, amend)
+        msg_list = self.__split_msg(message, amend, emergency_msg)
+        status, sending, page = self.__send_multiple_msg(msg_list, self.notifier_client.send_message_by_threshold)
+        if len(msg_list[page:]) == 0:
+            return status, sending
+        msg_list = msg_list[page:]
+        self.__send_emergency_message([msg_list[0] + 'failed to send by th:'] + msg_list[1:], self.receiver_id)
 
     def set_threshold_setting(self,
                               message: str,
@@ -199,14 +197,53 @@ class SendNotification:
             sending_threshold_time
         )
 
-    def __send_emergency_message(self, message: str, receiver_id: int, amend: dict = None, retrying=5):
-        for _ in range(retrying):
-            logger.info(f'{message}, {receiver_id}')
-            url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
-            data = {
-                'chat_id': receiver_id,
-                'text': f"message: {message} amend: {amend}",
-                'disable_web_page_preview': True
-            }
-            if requests.post(url=url, data=data, timeout=15).status_code == 200:
-                break
+    def __send_emergency_message(self, msg_list: List[str], receiver_id: int, retrying=5):
+        for msg in msg_list:
+            for _ in range(retrying):
+                logger.info(f'{msg}, {receiver_id}')
+                url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
+                data = {
+                    'chat_id': receiver_id,
+                    'text': f"message: {msg} amend: {None}",
+                    'disable_web_page_preview': True
+                }
+                if requests.post(url=url, data=data, timeout=15).status_code == 200:
+                    break
+
+    def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = None) -> List[str]:
+        def none_to_str(s): return '' if s is None else f'\n{s}'
+
+        mandatory_msg = f"\nemergency_msg: {emergency_msg}\namend: {amend}"
+        cropping_size = self.max_msg_size - len(mandatory_msg)
+        if cropping_size < 0:
+            raise Exception("Max size is to low")
+        message = message[:cropping_size] + mandatory_msg + message[cropping_size:]
+        if len(message) < self.max_msg_size:
+            return [message]
+        return [f"{message[i:i + self.max_msg_size]}\n#{page + 1}\n"
+                for page, i in enumerate(range(0, len(message), self.max_msg_size))]
+
+    def __send_multiple_msg(self, msg_list: List[str], send_func: callable) -> Tuple[int, bool, int]:
+
+        page = 0
+        res = None
+        try:
+            for msg in msg_list:
+                for _ in range(self.retiring_number):
+                    res = send_func(msg)
+                    if self.__check_status(res):
+                        page += 1
+                        break
+                else:
+                    raise Exception(f"status code: {res}\n"
+                                    f"Couldn't send message: {msg}")
+        except Exception as e:
+            print(e.__str__())
+
+        return (res, False, page) if not isinstance(res, tuple) else res + (page,)
+
+    @staticmethod
+    def __check_status(result: Union[int, Tuple[int, bool]]):
+        if type(result) == Tuple:
+            return result[0] == 200
+        return result == 200
