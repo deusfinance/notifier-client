@@ -144,7 +144,7 @@ class SendNotification:
                 logging.getLogger().setLevel(logging.DEBUG)
                 self.test_env_logger = logging
 
-    def send_alert(self, message: str, amend: dict = None, emergency_msg: str = None) -> Optional[int]:
+    def send_alert(self, message: str, amend: dict = None, emergency_msg: str = '') -> Optional[int]:
         """
         Sends an alert notification with optional message amendment and emergency message.
 
@@ -178,7 +178,7 @@ class SendNotification:
         return self.__send_message_pagination(message, self.notifier_client.send_message, amend, emergency_msg)
 
     def send_message_by_threshold(self, message: str, amend: dict = None,
-                                  emergency_msg: str = None) -> Optional[Tuple[int, bool]]:
+                                  emergency_msg: str = '') -> Optional[Tuple[int, bool]]:
         """
         Parameters:
             -message: the message to send
@@ -213,7 +213,7 @@ class SendNotification:
             sending_threshold_time
         )
 
-    def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = None) -> List[str]:
+    def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = '') -> List[str]:
         """
         Splits a given message into multiple parts if it exceeds a predefined size.
         The method ensures that the split messages include the emergency message and amendments, if provided.
@@ -237,7 +237,7 @@ class SendNotification:
         ]
 
     def __send_message_pagination(
-            self, message: str, send_func: callable, amend: dict = None, emergency_msg: str = None
+            self, message: str, send_func: callable, amend: dict = None, emergency_msg: str = ''
     ) -> Union[int, Optional[Tuple[int, bool]]]:
         """
         Sends a message in paginated form and attempts retries if necessary.
@@ -258,19 +258,19 @@ class SendNotification:
             break_flag = False
             try:
                 for _ in range(self.retiring_number):
-                    res = send_func(msg, amend, emergency_msg)
+                    res = send_func(msg + emergency_msg, amend)
                     if self.__check_status(res):
                         break_flag = True
                         break
                 if break_flag:
                     amend = {}
-                    emergency_msg = None
+                    emergency_msg = ''
                     continue
             except Exception as e:
                 logger.exception(f'exception:{e}')
             self.__send_emergency_message(message, self.receiver_id, amend, emergency_msg)
             amend = {}
-            emergency_msg = None
+            emergency_msg = ''
         return res
 
     @staticmethod
@@ -288,7 +288,7 @@ class SendNotification:
         return result == 200
 
     def __send_emergency_message(
-            self, message: str, receiver_id: int, amend: dict = None, emergency_msg: str = None, retrying=5
+            self, message: str, receiver_id: int, amend: dict = None, emergency_msg: str = '', retrying=5
     ):
         """
         Sends an emergency message to a specified receiver, with optional retries.
