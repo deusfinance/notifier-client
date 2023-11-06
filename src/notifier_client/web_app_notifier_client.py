@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 from logging import Logger
 from typing import Tuple, Optional, Union, List
@@ -5,6 +6,18 @@ from typing import Tuple, Optional, Union, List
 import requests
 
 logger = logging.getLogger('telegram')
+
+
+@dataclass
+class Message:
+    page: int
+    content: str
+    emergency: str = ''
+    amend: dict = None
+
+    def message(self) -> str:
+        return f"{self.content}\n#{self.page}\n" if len(self.emergency) == 0 \
+            else f"{self.content}\nemergency_msg: {self.emergency}\n#{self.page}\n"
 
 
 class WebAppNotifierClient:
@@ -213,7 +226,7 @@ class SendNotification:
             sending_threshold_time
         )
 
-    def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = '') -> List[str]:
+    def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = '') -> List[Message]:
         """
         Splits a given message into multiple parts if it exceeds a predefined size.
         The method ensures that the split messages include the emergency message and amendments, if provided.
@@ -231,8 +244,9 @@ class SendNotification:
             raise Exception("Max size is to low")
         first_message = message[:first_message_size]
         rest_of_message = message[first_message_size:]
-        return [f'{first_message}\n#{0}'] + [
-            f"{rest_of_message[i:i + self.max_msg_size]}\n#{page + 1}\n"
+
+        return [Message(1, first_message, emergency_msg, amend)] + [
+            Message(page+2, rest_of_message[i:i + self.max_msg_size])
             for page, i in enumerate(range(0, len(rest_of_message), self.max_msg_size))
         ]
 
@@ -258,19 +272,15 @@ class SendNotification:
             break_flag = False
             try:
                 for _ in range(self.retiring_number):
-                    res = send_func(msg + emergency_msg, amend)
+                    res = send_func(msg.message(), msg.amend)
                     if self.__check_status(res):
                         break_flag = True
                         break
                 if break_flag:
-                    amend = {}
-                    emergency_msg = ''
                     continue
             except Exception as e:
                 logger.exception(f'exception:{e}')
-            self.__send_emergency_message(message, self.receiver_id, amend, emergency_msg)
-            amend = {}
-            emergency_msg = ''
+            self.__send_emergency_message(msg.message(), self.receiver_id, msg.amend)
         return res
 
     @staticmethod
@@ -287,9 +297,7 @@ class SendNotification:
             return result[0] == 200
         return result == 200
 
-    def __send_emergency_message(
-            self, message: str, receiver_id: int, amend: dict = None, emergency_msg: str = '', retrying=5
-    ):
+    def __send_emergency_message(self, message: str, receiver_id: int, amend: dict = None, retrying=5):
         """
         Sends an emergency message to a specified receiver, with optional retries.
         If the message fails to send, the function retries the sending up to a specified number of times.
@@ -307,7 +315,7 @@ class SendNotification:
             url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
             data = {
                 'chat_id': receiver_id,
-                'text': f"message: {message} \n {emergency_msg} \namend: {amend}",
+                'text': f"message: {message} amend: {amend}",
                 'disable_web_page_preview': True
             }
             if requests.post(url=url, data=data, timeout=15).status_code == 200:
