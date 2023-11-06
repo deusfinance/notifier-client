@@ -267,7 +267,7 @@ class SendNotification:
                     emergency_msg = None
                     continue
             except Exception as e:
-                Logger.exception(f'exception:{e}')
+                logger.exception(f'exception:{e}')
             self.__send_emergency_message(message, self.receiver_id, amend, emergency_msg)
             amend = {}
             emergency_msg = None
