@@ -136,11 +136,7 @@ class SendNotification:
         if self.test_env:
             self.test_env_logger.info(message)
             return
-        msg_list = self.__split_msg(message, amend, emergency_msg)
-        status, __, page = self.__send_multiple_msg(msg_list, self.notifier_client.send_alert)
-        if len(msg_list[page:]) == 0:
-            return status
-        self.__send_emergency_message(msg_list[page:], self.receiver_id)
+        return self.__send_multiple_msg(message, self.notifier_client.send_alert, amend, emergency_msg)
 
     def send_message(self, message: str, amend: dict = None, emergency_msg: str = None) -> Optional[int]:
         """
@@ -153,12 +149,7 @@ class SendNotification:
         if self.test_env:
             self.test_env_logger.info(message)
             return
-
-        msg_list = self.__split_msg(message, amend, emergency_msg)
-        status, __, page = self.__send_multiple_msg(msg_list, self.notifier_client.send_message)
-        if len(msg_list[page:]) == 0:
-            return status
-        self.__send_emergency_message(msg_list[page:], self.receiver_id)
+        return self.__send_multiple_msg(message, self.notifier_client.send_message, amend, emergency_msg)
 
     def send_message_by_threshold(self, message: str, amend: dict = None,
                                   emergency_msg: str = None) -> Optional[Tuple[int, bool]]:
@@ -172,12 +163,7 @@ class SendNotification:
         if self.test_env:
             self.test_env_logger.info(message)
             return
-        msg_list = self.__split_msg(message, amend, emergency_msg)
-        status, sending, page = self.__send_multiple_msg(msg_list, self.notifier_client.send_message_by_threshold)
-        if len(msg_list[page:]) == 0:
-            return status, sending
-        msg_list = msg_list[page:]
-        self.__send_emergency_message([msg_list[0] + 'failed to send by th:'] + msg_list[1:], self.receiver_id)
+        return self.__send_multiple_msg(message, self.notifier_client.send_message_by_threshold, amend, emergency_msg)
 
     def set_threshold_setting(self,
                               message: str,
@@ -198,19 +184,6 @@ class SendNotification:
             sending_threshold_time
         )
 
-    def __send_emergency_message(self, msg_list: List[str], receiver_id: int, retrying=5):
-        for msg in msg_list:
-            for _ in range(retrying):
-                logger.info(f'{msg}, {receiver_id}')
-                url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
-                data = {
-                    'chat_id': receiver_id,
-                    'text': f"message: {msg} amend: {None}",
-                    'disable_web_page_preview': True
-                }
-                if requests.post(url=url, data=data, timeout=15).status_code == 200:
-                    break
-
     def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = None) -> List[str]:
         mandatory_msg = f"\nemergency_msg: {emergency_msg}\namend: {amend}"
         first_message_size = self.max_msg_size - len(mandatory_msg)
@@ -219,11 +192,14 @@ class SendNotification:
         first_message = message[:first_message_size]
         rest_of_message = message[first_message_size:]
         return [f'{first_message}\n#{0}'] + [
-                f"{rest_of_message[i:i + self.max_msg_size]}\n#{page + 1}\n"
-                for page, i in enumerate(range(0, len(rest_of_message), self.max_msg_size))
-            ]
+            f"{rest_of_message[i:i + self.max_msg_size]}\n#{page + 1}\n"
+            for page, i in enumerate(range(0, len(rest_of_message), self.max_msg_size))
+        ]
 
-    def __send_multiple_msg(self, msg_list: List[str], send_func: callable) -> Tuple[int, bool, int]:
+    def __send_multiple_msg(
+            self, message: str, send_func: callable, amend: dict = None, emergency_msg: str = None
+    ) -> Union[int, Optional[Tuple[int, bool]]]:
+        msg_list = self.__split_msg(message, amend, emergency_msg)
         page = 0
         res = None
         try:
@@ -246,3 +222,15 @@ class SendNotification:
         if type(result) == Tuple:
             return result[0] == 200
         return result == 200
+
+    def __send_emergency_message(self, message: str, receiver_id: int, amend: dict = None, retrying=5):
+        for _ in range(retrying):
+            logger.info(f'{message}, {receiver_id}')
+            url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
+            data = {
+                'chat_id': receiver_id,
+                'text': f"message: {message} \namend: {amend}",
+                'disable_web_page_preview': True
+            }
+            if requests.post(url=url, data=data, timeout=15).status_code == 200:
+                break
