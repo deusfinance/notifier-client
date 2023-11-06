@@ -56,10 +56,15 @@ class WebAppNotifierClient:
 
     def send_message_by_threshold(self, message: str, amend: dict = None) -> Tuple[int, bool]:
         """
+        Sends a message to the configured receiver with threshold checks.
 
-        :param message: the message to send
-        :param amend: to amend the message
-        :return: the status code of the response and that the message was added to queue for sending or not
+        Parameters:
+            - message (str): The message to be sent.
+            - amend (dict, optional): Additional data to amend the message.
+
+        Returns:
+            - Tuple[int, bool]: A tuple containing the HTTP status code and a boolean indicating whether
+                                the message has been added to the queue.
         """
         response = requests.post(
             url=self.server_url + '/send_message_threshold',
@@ -77,12 +82,15 @@ class WebAppNotifierClient:
                               sending_threshold_time: int
                               ) -> int:
         """
+        Sets threshold settings for sending messages.
 
-        :param message: the message want to set a sending thresh hole to
-        :param sending_threshold_number: the number of the message that need to be added to send one
-                    of them (threshold value)
-        :param sending_threshold_time: the threshold boundary
-        :return:
+        Parameters:
+            - message (str): The message for which to set the sending threshold.
+            - sending_threshold_number (int): The number of messages that trigger the threshold.
+            - sending_threshold_time (int): The time boundary for the threshold.
+
+        Returns:
+            - int: The HTTP status code of the response.
         """
         return requests.post(
             url=self.server_url + '/set_sending_threshold',
@@ -109,15 +117,18 @@ class SendNotification:
             max_msg_size: int = 3000
     ):
         """
+           Initializes a new instance of the SendNotification.
 
-        :param receiver_id:
-        :param server_url:
-        :param auth_token:
-        :param retrying_number:
-        :param telegram_bot_token:
-        :param test_env_logger:
-        :param max_msg_size:
-        """
+           Parameters:
+               - receiver_id (int): The receiver ID for sending notifications.
+               - server_url (str): The server URL for the WebAppNotifierClient.
+               - auth_token (str): The authentication token for the WebAppNotifierClient.
+               - retrying_number (int): The number of times to retry sending a notification upon failure.
+               - telegram_bot_token (str, optional): The bot token for the Telegram bot.
+               - test_env (bool): Flag indicating if the notification is being sent in a test environment.
+               - test_env_logger (logging.Logger, optional): The logger to use in the test environment.
+               - max_msg_size (int): The maximum allowed size for a message to be sent.
+           """
         self.receiver_id = receiver_id
         self.server_url = server_url
         self.retiring_number = retrying_number
@@ -135,11 +146,16 @@ class SendNotification:
 
     def send_alert(self, message: str, amend: dict = None, emergency_msg: str = None) -> Optional[int]:
         """
-        :param message: the message to send
-        :param amend: to amend the message
-        :param emergency_msg: emergency message like mentioning someone
-        :return: the status code of the response (200 means the message added to
-                                                  the queue for sending not the message sent)
+        Sends an alert notification with optional message amendment and emergency message.
+
+        Parameters:
+            - message (str): The alert message to be sent.
+            - amend (dict, optional): Additional data to amend the alert message.
+            - emergency_msg (str, optional): An emergency message to include, such as mentioning a user.
+
+        Returns:
+            - Optional[int]: The HTTP status code of the response (200 indicates that the message has been queued).
+                              Returns None if in test environment.
         """
         if self.test_env:
             self.test_env_logger.info(message)
