@@ -108,6 +108,7 @@ class SendNotification:
         :param retrying_number:
         :param telegram_bot_token:
         :param test_env_logger:
+        :param max_msg_size:
         """
         self.receiver_id = receiver_id
         self.server_url = server_url
@@ -211,20 +212,18 @@ class SendNotification:
                     break
 
     def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = None) -> List[str]:
-        def none_to_str(s): return '' if s is None else f'\n{s}'
-
         mandatory_msg = f"\nemergency_msg: {emergency_msg}\namend: {amend}"
-        cropping_size = self.max_msg_size - len(mandatory_msg)
-        if cropping_size < 0:
+        first_message_size = self.max_msg_size - len(mandatory_msg)
+        if first_message_size < 0:
             raise Exception("Max size is to low")
-        message = message[:cropping_size] + mandatory_msg + message[cropping_size:]
-        if len(message) < self.max_msg_size:
-            return [message]
-        return [f"{message[i:i + self.max_msg_size]}\n#{page + 1}\n"
-                for page, i in enumerate(range(0, len(message), self.max_msg_size))]
+        first_message = message[:first_message_size]
+        rest_of_message = message[first_message_size:]
+        return [f'{first_message}\n#{0}'] + [
+                f"{rest_of_message[i:i + self.max_msg_size]}\n#{page + 1}\n"
+                for page, i in enumerate(range(0, len(rest_of_message), self.max_msg_size))
+            ]
 
     def __send_multiple_msg(self, msg_list: List[str], send_func: callable) -> Tuple[int, bool, int]:
-
         page = 0
         res = None
         try:
