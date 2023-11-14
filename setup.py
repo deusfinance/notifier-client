@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='telegram_notifier_client',
-    version='1',
+    version='1.0.1',
     author="Ali Ghorbani",
     author_email='alighorbani29@gmail.com',
     packages=find_packages('src'),
