@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from logging import Logger
 from typing import Tuple, Optional, Union, List
 
@@ -21,17 +21,19 @@ class Message:
 
 
 class WebAppNotifierClient:
-    def __init__(self, receiver_id: int, server_url: str, auth_token: str):
+    def __init__(self, receiver_id: int, server_url: str, auth_token: str, topic_id: int = None):
         """
         Initializes a new instance of the WebAppNotifierClient.
         Parameters:
             - receiver_id (int): The ID of the Telegram group to which messages are to be sent.
             - server_url (str): The base URL of the server to send requests to.
             - auth_token (str): The authentication token used to access the server APIs.
+            - topic_id (int, Optional):
         """
         self.receiver_id = receiver_id
         self.server_url = server_url
         self.auth_token = auth_token
+        self.topic_id = topic_id
 
     def send_alert(self, message: str, amend: dict = None) -> int:
         """
@@ -45,7 +47,7 @@ class WebAppNotifierClient:
         return requests.post(
             url=self.server_url + '/send_alert',
             headers={'AuthToken': self.auth_token},
-            json=dict(receiver_id=self.receiver_id, text=message, amend=amend),
+            json=dict(receiver_id=self.receiver_id, text=message, topic_id=self.topic_id, amend=amend),
             timeout=5
         ).status_code
 
@@ -63,7 +65,7 @@ class WebAppNotifierClient:
         return requests.post(
             url=self.server_url + '/send_message',
             headers={'AuthToken': self.auth_token},
-            json=dict(receiver_id=self.receiver_id, text=message, amend=amend),
+            json=dict(receiver_id=self.receiver_id, text=message, topic_id=self.topic_id, amend=amend),
             timeout=5
         ).status_code
 
@@ -82,7 +84,7 @@ class WebAppNotifierClient:
         response = requests.post(
             url=self.server_url + '/send_message_threshold',
             headers={'AuthToken': self.auth_token},
-            json=dict(receiver_id=self.receiver_id, text=message, amend=amend),
+            json=dict(receiver_id=self.receiver_id, text=message, topic_id=self.topic_id, amend=amend),
             timeout=5
         )
         if response.status_code != 200:
@@ -127,6 +129,7 @@ class SendNotification:
             telegram_bot_token=None,
             test_env=False,
             test_env_logger: Optional[Logger] = None,
+            topic_id: Optional[int] = None,
             max_msg_size: int = 3000
     ):
         """
@@ -140,15 +143,17 @@ class SendNotification:
                - telegram_bot_token (str, optional): The bot token for the Telegram bot.
                - test_env (bool): Flag indicating if the notification is being sent in a test environment.
                - test_env_logger (logging.Logger, optional): The logger to use in the test environment.
+               - topic_id (int, optional):
                - max_msg_size (int): The maximum allowed size for a message to be sent.
            """
         self.receiver_id = receiver_id
         self.server_url = server_url
         self.retiring_number = retrying_number
         self.telegram_bot_token = telegram_bot_token
-        self.notifier_client = WebAppNotifierClient(self.receiver_id, server_url, auth_token)
+        self.notifier_client = WebAppNotifierClient(self.receiver_id, server_url, auth_token, topic_id)
         self.test_env = test_env
         self.max_msg_size = max_msg_size
+        self.topic_id = topic_id
         if self.test_env:
             if test_env_logger:
                 self.test_env_logger = test_env_logger
@@ -190,8 +195,9 @@ class SendNotification:
             return
         return self.__send_message_pagination(message, self.notifier_client.send_message, amend, emergency_msg)
 
-    def send_message_by_threshold(self, message: str, amend: dict = None,
-                                  emergency_msg: str = '') -> Optional[Tuple[int, bool]]:
+    def send_message_by_threshold(
+            self, message: str, amend: dict = None, emergency_msg: str = ''
+    ) -> Optional[Tuple[int, bool]]:
         """
         Parameters:
             -message: the message to send
@@ -203,8 +209,9 @@ class SendNotification:
         if self.test_env:
             self.test_env_logger.info(message)
             return
-        return self.__send_message_pagination(message, self.notifier_client.send_message_by_threshold, amend,
-                                              emergency_msg)
+        return self.__send_message_pagination(
+            message, self.notifier_client.send_message_by_threshold, amend, emergency_msg
+        )
 
     def set_threshold_setting(self,
                               message: str,
@@ -246,7 +253,7 @@ class SendNotification:
         rest_of_message = message[first_message_size:]
 
         return [Message(1, first_message, emergency_msg, amend)] + [
-            Message(page+2, rest_of_message[i:i + self.max_msg_size])
+            Message(page + 2, rest_of_message[i:i + self.max_msg_size])
             for page, i in enumerate(range(0, len(rest_of_message), self.max_msg_size))
         ]
 
@@ -280,7 +287,7 @@ class SendNotification:
                     continue
             except Exception as e:
                 logger.exception(f'exception:{e}')
-            self.__send_emergency_message(msg.message(), self.receiver_id, msg.amend)
+            self.__send_emergency_message(msg.message(), msg.amend)
         return res
 
     @staticmethod
@@ -297,13 +304,14 @@ class SendNotification:
             return result[0] == 200
         return result == 200
 
-    def __send_emergency_message(self, message: str, receiver_id: int, amend: dict = None, retrying=5):
+    def __send_emergency_message(self, message: str, amend: dict = None, retrying=5):
         """
         Sends an emergency message to a specified receiver, with optional retries.
         If the message fails to send, the function retries the sending up to a specified number of times.
         Parameters:
             - message (str): The emergency message to be sent.
             - receiver_id (int): The ID of the receiver to whom the message should be sent.
+            - topic_id (int, optional):
             - amend (dict, optional): A dictionary of amendments to be appended to the message.
             - emergency_msg (str, optional): An additional emergency message to be included.
             - retrying (int): The number of times to retry sending the message.
@@ -311,12 +319,14 @@ class SendNotification:
             - None
         """
         for _ in range(retrying):
-            logger.info(f'{message}, {receiver_id}')
+            logger.info(f'{message}, {self.receiver_id}')
             url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
             data = {
-                'chat_id': receiver_id,
+                'chat_id': self.receiver_id,
                 'text': f"message: {message} amend: {amend}",
                 'disable_web_page_preview': True
             }
+            if self.topic_id:
+                data['reply_to_message_id'] = self.topic_id
             if requests.post(url=url, data=data, timeout=15).status_code == 200:
                 break
