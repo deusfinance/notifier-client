@@ -180,7 +180,7 @@ class SendNotification:
             return
         return self.__send_message_pagination(message, self.notifier_client.send_alert, amend, emergency_msg)
 
-    def send_message(self, message: str, amend: dict = None, emergency_msg: str = None) -> Optional[int]:
+    def send_message(self, message: str, amend: dict = None, emergency_msg: str = '') -> Optional[int]:
         """
         Parameters:
             -message: the message to send
@@ -310,10 +310,7 @@ class SendNotification:
         If the message fails to send, the function retries the sending up to a specified number of times.
         Parameters:
             - message (str): The emergency message to be sent.
-            - receiver_id (int): The ID of the receiver to whom the message should be sent.
-            - topic_id (int, optional):
             - amend (dict, optional): A dictionary of amendments to be appended to the message.
-            - emergency_msg (str, optional): An additional emergency message to be included.
             - retrying (int): The number of times to retry sending the message.
         Returns:
             - None
