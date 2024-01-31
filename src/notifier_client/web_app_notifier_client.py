@@ -16,8 +16,8 @@ class Message:
     amend: dict = None
 
     def message(self) -> str:
-        return f"{self.content}\n#{self.page}\n" if len(self.emergency) == 0 \
-            else f"{self.content}\nemergency_msg: {self.emergency}\n#{self.page}\n"
+        emergency = f"<b>Emergency Message</b><blockquote>{self.emergency}</blockquote>\n" if self.emergency else ""
+        return f"<blockquote>{self.content}</blockquote>\n{emergency}<b>Page: {self.page}</b>\n"
 
 
 class WebAppNotifierClient:
