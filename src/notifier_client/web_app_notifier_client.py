@@ -323,8 +323,14 @@ class SendNotification:
             url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
             data = {
                 'chat_id': self.receiver_id,
-                'text': f"message: {message} amend: {amend}",
-                'disable_web_page_preview': True
+                'text': f"""<b>Message </b>
+{message}
+<b>Amend</b>
+<pre><code class="language-python">{amend}</code></pre>
+
+<b>#emergency</b>""",
+                'disable_web_page_preview': True,
+                "parse_mode": "HTML"
             }
             if self.topic_id:
                 data['reply_to_message_id'] = self.topic_id
