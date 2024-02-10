@@ -20,6 +20,19 @@ class Message:
         return f"<blockquote>{self.content}</blockquote>\n{emergency}<b>Page: {self.page}</b>\n"
 
 
+@dataclass
+class ErrorMessage:
+    title: str
+    apm_reference: str
+    amend: dict = None
+    mentions: str = None
+
+    def message(self):
+        return (f'<blockquote>❗️ ErrorType:    <code class="language-python">{self.title}</code>\n'
+                f'📊 APM Reference:   <code>{self.apm_reference}</code>\n'
+                f'👨‍💻 Developers:    {self.mentions}</blockquote>\n')
+
+
 class WebAppNotifierClient:
     def __init__(self, receiver_id: int, server_url: str, auth_token: str, topic_id: int = None):
         """
@@ -115,6 +128,38 @@ class WebAppNotifierClient:
                 sending_threshold_number=sending_threshold_number,
                 sending_threshold_time=sending_threshold_time
             ),
+            timeout=5
+        ).status_code
+
+    def notify_error(self,
+                     title: str,
+                     apm_reference: str,
+                     amend: dict = None,
+                     mentions: str = None,
+                     instant: bool = False
+                     ):
+        """
+        The notify_error function is used to notify the user of an error.
+
+        :param title: str: Set the title of the notification
+        :param apm_reference: str: Reference of the message in the ElasticAPM dashboard
+        :param amend: dict: Add additional information to the error message
+        :param mentions: tuple: List of the developers that should be mentioned in the message
+        :param instant: bool: Force to send a message to the telegram immediately either if it sent before
+        :return: A status code of the request
+        """
+
+        return requests.post(
+            url=self.server_url + '/notify_error',
+            headers={'AuthToken': self.auth_token},
+            json=dict(
+                title=title,
+                apm_reference=apm_reference,
+                receiver_id=self.receiver_id,
+                topic_id=self.topic_id,
+                amend=amend,
+                mentions=mentions,
+                instant=instant),
             timeout=5
         ).status_code
 
@@ -232,6 +277,44 @@ class SendNotification:
             sending_threshold_number,
             sending_threshold_time
         )
+
+    def notify_error(self,
+                     title: str,
+                     apm_reference: str,
+                     amend: dict = None,
+                     mentions: tuple = None,
+                     instant: bool = False) -> Optional[int]:
+
+        """
+        The notify_error function is used to notify the user of an error.
+
+        :param title: str: Specify the title of the error
+        :param apm_reference: str: Reference of the message in the ElasticAPM dashboard
+        :param amend: dict: Add additional information to the message
+        :param mentions: tuple: List of the developers that should be mentioned in the message
+        :param instant: bool: Force to send a message to the telegram immediately either if the same title sent before
+        :return: The status code of the request
+        """
+        if self.test_env:
+            self.test_env_logger.info(f"{title}: {apm_reference}")
+            return
+
+        res = 0
+        mentions = " ".join(mentions)
+
+        try:
+            for _ in range(self.retiring_number):
+                res = self.notifier_client.notify_error(title=title, apm_reference=apm_reference, amend=amend,
+                                                        mentions=mentions, instant=instant)
+                if self.__check_status(res):
+                    return res
+
+        except Exception as e:
+            logger.exception(f'exception:{e}')
+
+        message = ErrorMessage(title=title, apm_reference=apm_reference, amend=amend, mentions=mentions)
+        self.__send_emergency_message(message.message(), message.amend)
+        return res
 
     def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = '') -> List[Message]:
         """
