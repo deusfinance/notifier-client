@@ -406,12 +406,9 @@ class SendNotification:
             url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
             data = {
                 'chat_id': self.receiver_id,
-                'text': f"""<b>Message </b>
-{message}
-<b>Amend</b>
-<pre><code class="language-python">{amend}</code></pre>
-
-<b>#emergency</b>""",
+                'text': f'<b>Message </b>\n{message}\n'
+                        f'<b>Amend</b>\n<pre><code class="language-python">{amend}</code></pre>\n\n'
+                        f'<b>#emergency</b>',
                 'disable_web_page_preview': True,
                 "parse_mode": "HTML"
             }
