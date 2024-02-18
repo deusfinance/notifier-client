@@ -28,7 +28,7 @@ class ErrorMessage:
     mentions: str = None
 
     def message(self):
-        return (f'<blockquote>❗️ ErrorType:    <code class="language-python">{self.title}</code>\n'
+        return (f'<blockquote>🔵 Message:    <code class="language-python">{self.title}</code>\n'
                 f'📊 APM Reference:   <code>{self.apm_reference}</code>\n'
                 f'👨‍💻 Developers:    {self.mentions}</blockquote>\n')
 
@@ -131,26 +131,27 @@ class WebAppNotifierClient:
             timeout=5
         ).status_code
 
-    def notify_error(self,
-                     title: str,
-                     apm_reference: str,
-                     amend: dict = None,
-                     mentions: str = None,
-                     instant: bool = False
-                     ):
+    def send_message_once(self,
+                          title: str,
+                          apm_reference: str,
+                          amend: dict = None,
+                          mentions: str = None,
+                          expire: int = None
+                          ):
         """
-        The notify_error function is used to notify the user of an error.
+        The send_message_once function is used to notify the user of an error.
 
         :param title: str: Set the title of the notification
         :param apm_reference: str: Reference of the message in the ElasticAPM dashboard
-        :param amend: dict: Add additional information to the error message
+        :param amend: dict: Add additional information to the message
         :param mentions: tuple: List of the developers that should be mentioned in the message
-        :param instant: bool: Force to send a message to the telegram immediately either if it sent before
+        :param expire: int: Expire time of the message that prevents from sending repeated message in seconds.
+        Default is 2 day. If sets to `0` the message will be sent immediately.
         :return: A status code of the request
         """
 
         return requests.post(
-            url=self.server_url + '/notify_error',
+            url=self.server_url + '/send_message_once',
             headers={'AuthToken': self.auth_token},
             json=dict(
                 title=title,
@@ -159,7 +160,7 @@ class WebAppNotifierClient:
                 topic_id=self.topic_id,
                 amend=amend,
                 mentions=mentions,
-                instant=instant),
+                expire=expire),
             timeout=5
         ).status_code
 
@@ -278,34 +279,37 @@ class SendNotification:
             sending_threshold_time
         )
 
-    def notify_error(self,
-                     title: str,
-                     apm_reference: str,
-                     amend: dict = None,
-                     mentions: tuple = None,
-                     instant: bool = False) -> Optional[int]:
+    def send_message_once(self,
+                          title: str,
+                          apm_reference: str,
+                          amend: dict = None,
+                          mentions: tuple = None,
+                          expire: int = None) -> Optional[int]:
 
         """
-        The notify_error function is used to notify the user of an error.
+        The send_message_once function is used to send message the user only once in a time.
 
-        :param title: str: Specify the title of the error
+        :param title: str: Specify the title of the message
         :param apm_reference: str: Reference of the message in the ElasticAPM dashboard
         :param amend: dict: Add additional information to the message
         :param mentions: tuple: List of the developers that should be mentioned in the message
-        :param instant: bool: Force to send a message to the telegram immediately either if the same title sent before
+        :param expire: int: Expire time of the message that prevents from sending repeated message in seconds.
+        Default is 2 day. If sets to `0` the message will be sent immediately.
         :return: The status code of the request
         """
+
         if self.test_env:
             self.test_env_logger.info(f"{title}: {apm_reference}")
             return
 
         res = 0
-        mentions = " ".join(mentions)
+        if mentions:
+            mentions = " ".join(mentions)
 
         try:
             for _ in range(self.retiring_number):
-                res = self.notifier_client.notify_error(title=title, apm_reference=apm_reference, amend=amend,
-                                                        mentions=mentions, instant=instant)
+                res = self.notifier_client.send_message_once(title=title, apm_reference=apm_reference, amend=amend,
+                                                             mentions=mentions, expire=expire)
                 if self.__check_status(res):
                     return res
 
