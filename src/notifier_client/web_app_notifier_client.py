@@ -16,6 +16,9 @@ class Message:
     amend: dict = None
 
     def message(self) -> str:
+        if self.emergency:
+            self.emergency = self.emergency.replace("<", "&lt;").replace(">", "&gt;")
+        self.content = self.content.replace("<", "&lt;").replace(">", "&gt;")
         emergency = f"<b>Emergency Message</b><blockquote>{self.emergency}</blockquote>\n" if self.emergency else ""
         return f"<blockquote>{self.content}</blockquote>\n{emergency}<b>Page: {self.page}</b>\n"
 
@@ -28,6 +31,7 @@ class ErrorMessage:
     mentions: str = None
 
     def message(self):
+        self.title = self.title.replace("<", "&lt;").replace(">", "&gt;")
         return (f'<blockquote>🔵 Message:    <code class="language-python">{self.title}</code>\n'
                 f'📊 APM Reference:   <code>{self.apm_reference}</code>\n'
                 f'👨‍💻 Developers:    {self.mentions}</blockquote>\n')
@@ -408,6 +412,7 @@ class SendNotification:
         for _ in range(retrying):
             logger.info(f'{message}, {self.receiver_id}')
             url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
+            amend = str(amend).replace("<", "&lt;").replace(">", "&gt;")
             data = {
                 'chat_id': self.receiver_id,
                 'text': f'<b>Message </b>\n{message}\n'
