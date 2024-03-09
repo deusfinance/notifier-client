@@ -1,4 +1,5 @@
 README.md
+pyproject.toml
 setup.cfg
 setup.py
 src/notifier_client/__init__.py

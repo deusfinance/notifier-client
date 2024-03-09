@@ -1,7 +1,24 @@
 Metadata-Version: 2.1
-Name: telegram-notifier-client
-Version: 1.0.6
+Name: telegram_notifier_client
+Version: 1.0.7
+Summary: telegram_notifier_client
 Home-page: https://github.com/deusfinance/notifier-client.git
 Author: Ali Ghorbani
-Author-email: alighorbani29@gmail.com
-Keywords: telegram notifier client
+Author-email: rorschach <rorschach45001@gmail.com>
+Project-URL: Homepage, https://github.com/deusfinance/notifier-client
+Project-URL: Issues, https://github.com/deusfinance/notifier-client/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: certifi
+Requires-Dist: charset-normalizer
+Requires-Dist: idna
+Requires-Dist: requests
+Requires-Dist: urllib3
+
+# notifier-client
+https://pypi.org/project/telegram-notifier-client/
+
+pip install telegram-notifier-client
