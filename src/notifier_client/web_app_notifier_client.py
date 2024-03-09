@@ -225,6 +225,7 @@ class SendNotification:
             - Optional[int]: The HTTP status code of the response (200 indicates that the message has been queued).
                               Returns None if in test environment.
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         if self.test_env:
             self.test_env_logger.info(message)
             return
@@ -240,6 +241,7 @@ class SendNotification:
             -the status code of the response (200 means the message added to
                                                   the queue for sending not the message sent)
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         if self.test_env:
             self.test_env_logger.info(message)
             return
@@ -256,6 +258,7 @@ class SendNotification:
         Returns:
             -the status code of the response and that the message was added to queue for sending or not
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         if self.test_env:
             self.test_env_logger.info(message)
             return
@@ -277,6 +280,7 @@ class SendNotification:
         Returns:
              the status code
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         return self.notifier_client.set_threshold_setting(
             message,
             sending_threshold_number,
@@ -364,6 +368,7 @@ class SendNotification:
         Returns:
             - Union[int, Optional[Tuple[int, bool]]]: The result of the last message attempt to send.
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         msg_list = self.__split_msg(message, amend, emergency_msg)
         res = 0
         for msg in msg_list:
