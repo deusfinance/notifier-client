@@ -16,8 +16,25 @@ class Message:
     amend: dict = None
 
     def message(self) -> str:
+        if self.emergency:
+            self.emergency = self.emergency.replace("<", "&lt;").replace(">", "&gt;")
+        self.content = self.content.replace("<", "&lt;").replace(">", "&gt;")
         emergency = f"<b>Emergency Message</b><blockquote>{self.emergency}</blockquote>\n" if self.emergency else ""
         return f"<blockquote>{self.content}</blockquote>\n{emergency}<b>Page: {self.page}</b>\n"
+
+
+@dataclass
+class ErrorMessage:
+    title: str
+    apm_reference: str
+    amend: dict = None
+    mentions: str = None
+
+    def message(self):
+        self.title = self.title.replace("<", "&lt;").replace(">", "&gt;")
+        return (f'<blockquote>🔵 Message:    <code class="language-python">{self.title}</code>\n'
+                f'📊 APM Reference:   <code>{self.apm_reference}</code>\n'
+                f'👨‍💻 Developers:    {self.mentions}</blockquote>\n')
 
 
 class WebAppNotifierClient:
@@ -118,6 +135,39 @@ class WebAppNotifierClient:
             timeout=5
         ).status_code
 
+    def send_message_once(self,
+                          title: str,
+                          apm_reference: str,
+                          amend: dict = None,
+                          mentions: str = None,
+                          expire: int = None
+                          ):
+        """
+        The send_message_once function is used to notify the user of an error.
+
+        :param title: str: Set the title of the notification
+        :param apm_reference: str: Reference of the message in the ElasticAPM dashboard
+        :param amend: dict: Add additional information to the message
+        :param mentions: tuple: List of the developers that should be mentioned in the message
+        :param expire: int: Expire time of the message that prevents from sending repeated message in seconds.
+        Default is 2 day. If sets to `0` the message will be sent immediately.
+        :return: A status code of the request
+        """
+
+        return requests.post(
+            url=self.server_url + '/send_message_once',
+            headers={'AuthToken': self.auth_token},
+            json=dict(
+                title=title,
+                apm_reference=apm_reference,
+                receiver_id=self.receiver_id,
+                topic_id=self.topic_id,
+                amend=amend,
+                mentions=mentions,
+                expire=expire),
+            timeout=5
+        ).status_code
+
 
 class SendNotification:
     def __init__(
@@ -175,6 +225,7 @@ class SendNotification:
             - Optional[int]: The HTTP status code of the response (200 indicates that the message has been queued).
                               Returns None if in test environment.
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         if self.test_env:
             self.test_env_logger.info(message)
             return
@@ -190,6 +241,7 @@ class SendNotification:
             -the status code of the response (200 means the message added to
                                                   the queue for sending not the message sent)
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         if self.test_env:
             self.test_env_logger.info(message)
             return
@@ -206,6 +258,7 @@ class SendNotification:
         Returns:
             -the status code of the response and that the message was added to queue for sending or not
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         if self.test_env:
             self.test_env_logger.info(message)
             return
@@ -227,11 +280,53 @@ class SendNotification:
         Returns:
              the status code
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         return self.notifier_client.set_threshold_setting(
             message,
             sending_threshold_number,
             sending_threshold_time
         )
+
+    def send_message_once(self,
+                          title: str,
+                          apm_reference: str,
+                          amend: dict = None,
+                          mentions: tuple = None,
+                          expire: int = None) -> Optional[int]:
+
+        """
+        The send_message_once function is used to send message the user only once in a time.
+
+        :param title: str: Specify the title of the message
+        :param apm_reference: str: Reference of the message in the ElasticAPM dashboard
+        :param amend: dict: Add additional information to the message
+        :param mentions: tuple: List of the developers that should be mentioned in the message
+        :param expire: int: Expire time of the message that prevents from sending repeated message in seconds.
+        Default is 2 day. If sets to `0` the message will be sent immediately.
+        :return: The status code of the request
+        """
+
+        if self.test_env:
+            self.test_env_logger.info(f"{title}: {apm_reference}")
+            return
+
+        res = 0
+        if mentions:
+            mentions = " ".join(mentions)
+
+        try:
+            for _ in range(self.retiring_number):
+                res = self.notifier_client.send_message_once(title=title, apm_reference=apm_reference, amend=amend,
+                                                             mentions=mentions, expire=expire)
+                if self.__check_status(res):
+                    return res
+
+        except Exception as e:
+            logger.exception(f'exception:{e}')
+
+        message = ErrorMessage(title=title, apm_reference=apm_reference, amend=amend, mentions=mentions)
+        self.__send_emergency_message(message.message(), message.amend)
+        return res
 
     def __split_msg(self, message: str, amend: dict = None, emergency_msg: str = '') -> List[Message]:
         """
@@ -273,6 +368,7 @@ class SendNotification:
         Returns:
             - Union[int, Optional[Tuple[int, bool]]]: The result of the last message attempt to send.
         """
+        message = message.replace('<', '&lt;').replace('>', '&gt;')
         msg_list = self.__split_msg(message, amend, emergency_msg)
         res = 0
         for msg in msg_list:
@@ -318,10 +414,14 @@ class SendNotification:
         for _ in range(retrying):
             logger.info(f'{message}, {self.receiver_id}')
             url = f'https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage'
+            amend = str(amend).replace("<", "&lt;").replace(">", "&gt;")
             data = {
                 'chat_id': self.receiver_id,
-                'text': f"message: {message} amend: {amend}",
-                'disable_web_page_preview': True
+                'text': f'<b>Message </b>\n{message}\n'
+                        f'<b>Amend</b>\n<pre><code class="language-python">{amend}</code></pre>\n\n'
+                        f'<b>#emergency</b>',
+                'disable_web_page_preview': True,
+                "parse_mode": "HTML"
             }
             if self.topic_id:
                 data['reply_to_message_id'] = self.topic_id

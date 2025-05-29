@@ -1,0 +1,26 @@
+[project]
+name = "telegram_notifier_client"
+version = "1.0.7"
+authors = [
+  { name="rorschach", email="rorschach45001@gmail.com" },
+]
+description = "telegram_notifier_client"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+  "certifi",
+  "charset-normalizer",
+  "idna",
+  "requests",
+  "urllib3"
+]
+
+[project.urls]
+Homepage = "https://github.com/deusfinance/notifier-client"
+Issues = "https://github.com/deusfinance/notifier-client/issues"
